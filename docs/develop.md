@@ -138,7 +138,7 @@ $ gomobile init
 To generate bindings for an Android application, run:
 
 ```bash
-$ gomobile bind -v -o emmy.aar github.com/xlab-si/emmy/client/compatibility
+$ gomobile bind -v -o emmy.aar github.com/emmyzkp/emmy/client/compatibility
 ``` 
 
 This will produce an Android archive (.aar file) named *emmy.aar* that you can add as a module in 
@@ -146,4 +146,4 @@ your Android application. Then, you will be able to import exposed classes from 
  of the Android application by importing a subset of Java package *compatibility*. 
  
 Please refer to 
- [compatibility package documentation](../client/compatibility/doc.go) for more details.
+ [compatibility package documentation](../anauth/compat/doc.go) for more details.

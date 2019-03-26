@@ -1,17 +1,14 @@
-.PHONY: setup setup_dep setup_test setup_mobile setup_linter deps install test fmt lint android proto clean clean_deps run
+.PHONY: setup setup_test setup_mobile setup_linter install test fmt lint android proto clean run
 
 ALL = ./...
 
 # All .go files not in vendor directory
-ALL_GO := $(shell find . -type f -name '*.go' -not -path "./vendor/*")
+ALL_GO := $(shell find . -type f -name '*.go')
 
 all: install
 
 # Setup and update all the required tools
-setup: setup_dep setup_test setup_linter setup_mobile
-
-setup_dep:
-	go get -u github.com/golang/dep/cmd/dep
+setup: setup_test setup_linter setup_mobile
 
 setup_test:
 	go get -u github.com/stretchr/testify/assert
@@ -23,11 +20,6 @@ setup_mobile:
 setup_linter:
 	go get -u github.com/alecthomas/gometalinter
 	gometalinter --install --update
-
-# Runs dep ensure to populate the vendor directory with
-# the required dependencies and potentially modify Gopkg.lock.
-deps:
-	dep ensure -v
 
 # Install go package to produce emmy binaries
 install:
@@ -44,7 +36,7 @@ test:
 
 # Run integration tests with a real redis db instance
 test-integration:
-	go test -v -cover ./client -db
+	go test -v -cover ./anauth/test -db
 
 # Lists and formats all go source files with goimports
 fmt:
@@ -56,7 +48,7 @@ fmt:
 # Auto-generated code for protobuffers is excluded from this check
 lint:
 	-gometalinter --exclude=.*.pb.go \
-	 	--enable=gofmt \
+		--enable=gofmt \
 		--enable=goimports \
 		--enable=gosimple \
 		--enable=misspell \
@@ -65,22 +57,23 @@ lint:
 
 # Generates Android archive (AAR) for emmy's client compatibility package
 android:
-	gomobile bind -v -o emmy.aar github.com/xlab-si/emmy/client/compatibility
+	go install ./...
+	gomobile bind -v -o emmy.aar github.com/emmyzkp/emmy/anauth/compat
 
 # Generates protobuffer code based on protobuffer definitions
 # Requires protoc compiler
 proto:
-	protoc -I proto/ \
- 	 	proto/messages.proto \
- 	 	proto/services.proto \
- 	 	--go_out=plugins=grpc:proto
+	protoc anauth/cl/clpb/cl.proto --go_out=plugins=grpc:$(GOPATH)/src
+	protoc anauth/psys/psyspb/psys.proto --go_out=plugins=grpc:$(GOPATH)/src
+	protoc \
+		-I . anauth/ecpsys/ecpsyspb/ecpsys.proto \
+		-I anauth/psys/psyspb/psys.proto \
+		--go_out=plugins=grpc:$(GOPATH)/src
 
 # Removes temporary files produced by the targets
 clean:
-	-rm emmy.aar emmy-sources.jar
-
-clean_deps:
-	-rm -rf vendor
+	-rm emmy emmy.aar emmy-sources.jar
+	go clean -modcache
 
 # Rebuilds emmy server and starts emmy server and redis instance
 run:

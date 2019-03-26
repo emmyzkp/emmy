@@ -13,3 +13,4 @@ vendor/*/
 *.swp
 *.swo
 .DS_Store
+emmy

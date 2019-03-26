@@ -5,22 +5,14 @@ jobs:
       - image: circleci/golang:1.12
       - image: redis
 
-    working_directory: /go/src/github.com/xlab-si/emmy
+    working_directory: /go/src/github.com/emmyzkp/emmy
 
     steps:
       - checkout
 
       - run:
-          name: Install dep & testing library
-          command: make setup_dep setup_test
-
-      - run:
           name: Install emmy
-          command: go get -u -t ./...
-
-      - run:
-          name: Install all dependencies with dep
-          command: dep ensure
+          command: go install
 
       - run:
           name: Run unit tests

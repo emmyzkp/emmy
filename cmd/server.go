@@ -18,115 +18,195 @@
 package cmd
 
 import (
-	"path/filepath"
-
 	"fmt"
+	"os"
+	"path"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/go-redis/redis"
-	"github.com/urfave/cli"
-	"github.com/xlab-si/emmy/config"
-	"github.com/xlab-si/emmy/crypto/cl"
-	"github.com/xlab-si/emmy/log"
-	"github.com/xlab-si/emmy/server"
+
+	"github.com/emmyzkp/emmy/anauth"
+	"github.com/emmyzkp/emmy/anauth/cl"
+	"github.com/emmyzkp/emmy/log"
 )
 
-var ServerCmd = cli.Command{
-	Name:  "server",
-	Usage: "A server (verifier) that verifies clients (provers)",
-	Subcommands: []cli.Command{
-		{
-			Name:  "start",
-			Usage: "Starts emmy server",
-			Flags: serverFlags,
-			Action: func(ctx *cli.Context) error {
-				err := startEmmyServer(
-					ctx.Int("port"),
-					ctx.String("cert"),
-					ctx.String("key"),
-					ctx.String("db"),
-					ctx.String("logfile"),
-					ctx.String("loglevel"))
-				if err != nil {
-					return cli.NewExitError(err, 1)
-				}
-				return nil
-			},
-		},
+var srv *anauth.GrpcServer
+var port int
+var keyPath string
+var certPath string
+var redisAddr string
+
+var (
+	clNKnownAttrs     int
+	clNCommittedAttrs int
+	clNHiddenAttrs    int
+)
+
+func init() {
+	rootCmd.AddCommand(serverCmd, genCmd)
+
+	serverCmd.PersistentFlags().IntVarP(&port, "port", "p",
+		7007,
+		"Port where emmy server will listen for client connections")
+	serverCmd.PersistentFlags().StringVarP(&certPath, "cert", "c",
+		"./anauth/test/testdata/server.pem",
+		"Path to server's certificate file")
+	serverCmd.PersistentFlags().StringVarP(&keyPath, "key", "k",
+		"./anauth/test/testdata/server.key",
+		"Path to server's key file")
+	serverCmd.PersistentFlags().StringVarP(&redisAddr, "db", "",
+		"localhost:6379",
+		"URI of redis database to hold registration keys, in the form redisHost:redisPort")
+	serverCmd.PersistentFlags().StringP("logfile", "",
+		"",
+		"Path to the file where server logs will be written ("+
+			"created if it doesn't exist)")
+
+	viper.BindPFlag("REDIS_ADDR", serverCmd.Flags().Lookup("db"))
+
+	genCLCmd.Flags().IntVar(&clNKnownAttrs, "known", 0,
+		"Number of known attributes")
+	genCLCmd.Flags().IntVar(&clNCommittedAttrs, "committed", 0,
+		"Number of known attributes")
+	genCLCmd.Flags().IntVar(&clNHiddenAttrs, "hidden", 0,
+		"Number of known attributes")
+	_ = genCLCmd.MarkFlagRequired("known")
+
+	viper.BindPFlag("CL_ATTRS_KNOWN", genCLCmd.Flags().Lookup("known"))
+	viper.BindPFlag("CL_ATTRS_COMMITTED", genCLCmd.Flags().Lookup("committed"))
+	viper.BindPFlag("CL_ATTRS_HIDDEN", genCLCmd.Flags().Lookup("hidden"))
+
+	// add subcommands tied to various anonymous authentication schemes
+	genCmd.AddCommand(genCLCmd)
+	serverCmd.AddCommand(serverCLCmd, serverPsysCmd, serverECPsysCmd)
+}
+
+var genCmd = &cobra.Command{
+	Use: "generate",
+	Short: "Generates paremeters for the chosen anonymous authentication" +
+		" scheme.",
+}
+
+var genCLCmd = &cobra.Command{
+	Use:        "cl",
+	Short:      "Generates and stores keypair for the scheme.",
+	SuggestFor: []string{"cl"},
+	Run: func(cmd *cobra.Command, args []string) {
+		keys, err := cl.GenerateKeyPair(cl.GetDefaultParamSizes(),
+			cl.NewAttrCount(clNKnownAttrs, clNCommittedAttrs, clNHiddenAttrs))
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		err = cl.WriteGob(path.Join(emmyDir, "cl_seckey"), keys.Sec)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		err = cl.WriteGob(path.Join(emmyDir, "cl_pubkey"), keys.Pub)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		fmt.Println("Successfully generated keypair")
 	},
 }
 
-// serverFlags are the flags used by the server CLI commands.
-var serverFlags = []cli.Flag{
-	// portFlag indicates the port where emmy server will listen.
-	cli.IntFlag{
-		Name:  "port, p",
-		Value: config.LoadServerPort(),
-		Usage: "`PORT` where emmy server will listen for client connections",
+// serverCmd represents the server command
+var serverCmd = &cobra.Command{
+	Use:   "server",
+	Short: "Starts emmy anonymous authentication server",
+	Long: `emmy server is a server (verifier) that verifies 
+clients (provers).`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// FIXME make everything configurable
+		lgr, err := log.NewStdoutLogger("cl", log.DEBUG, log.FORMAT_LONG)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		srv, err = anauth.NewGrpcServer(certPath, keyPath, lgr)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 	},
-	// certFlag keeps the path to server's certificate in PEM format
-	// (for establishing a secure channel with the server).
-	cli.StringFlag{
-		Name:  "cert",
-		Value: filepath.Join(config.LoadTestdataDir(), "server.pem"),
-		Usage: "`PATH` to servers certificate file",
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if err := srv.Start(port); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 	},
-	// keyFlag keeps the path to server's private key in PEM format
-	// (for establishing a secure channel with the server).
-	cli.StringFlag{
-		Name:  "key",
-		Value: filepath.Join(config.LoadTestdataDir(), "server.key"),
-		Usage: "`PATH` to server key file",
-	},
-	// dbEndpointFlag points to the endpoint at which emmy server will contact redis database.
-	cli.StringFlag{
-		Name:  "db",
-		Value: config.LoadRegistrationDBAddress(),
-		Usage: "`URI` of redis database to hold registration keys, in the form redisHost:redisPort",
-	},
-	// logFilePathFlag indicates a path to the log file used by the server (optional).
-	cli.StringFlag{
-		Name:  "logfile",
-		Value: "",
-		Usage: "`PATH` to the file where server logs will be written (created if it doesn't exist)",
-	},
-	logLevelFlag,
 }
 
-// startEmmyServer configures and starts the gRPC server at the desired port
-func startEmmyServer(port int, certPath, keyPath, dbAddress, logFilePath, logLevel string) error {
-	var err error
-	var logger log.Logger
+var serverCLCmd = &cobra.Command{
+	Use: "cl",
+	Short: "Configures the server to run Camenisch-Lysyanskaya scheme for" +
+		" anonymous authentication.",
+	Run: func(cmd *cobra.Command, args []string) {
+		var sk cl.SecKey
+		var pk cl.PubKey
 
-	if logFilePath == "" {
-		logger, err = log.NewStdoutLogger("server", logLevel, log.FORMAT_LONG)
-	} else {
-		logger, err = log.NewStdoutFileLogger("server", logFilePath, logLevel, log.FORMAT_LONG,
-			log.FORMAT_LONG_COLORLESS)
-	}
-	if err != nil {
-		return err
-	}
+		err := cl.ReadGob(path.Join(emmyDir, "cl_seckey"), &sk)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		err = cl.ReadGob(path.Join(emmyDir, "cl_pubkey"), &pk)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
-	c := redis.NewClient(&redis.Options{
-		Addr: dbAddress,
-	})
-	err = c.Ping().Err()
-	if err != nil {
-		return fmt.Errorf("unable to connect to redis database (%s)", err)
-	}
+		redis := anauth.NewRedisClient(redis.NewClient(&redis.Options{
+			Addr: redisAddr,
+		}))
+		if err := redis.Ping().Err(); err != nil {
+			fmt.Println("cannot connect to redis:", err)
+			os.Exit(1)
+		}
 
-	registrationManager := server.NewRedisClient(c)
-	if err != nil {
-		return err
-	}
+		clService, err := cl.NewServer(
+			cl.NewMockRecordManager(), // TODO redis
+			&cl.KeyPair{
+				Sec: &sk,
+				Pub: &pk,
+			}, viper.GetViper())
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
-	recordManager := cl.NewRedisClient(c)
+		// FIXME
+		clService.RegMgr = redis
+		clService.SessMgr, _ = anauth.NewRandSessionKeyGen(32)
+		clService.SessStorer = anauth.NewRedisSessStorer(redis.Client)
+		clService.DataFetcher = cl.NewRedisDataFetcher(redis.Client)
 
-	srv, err := server.NewServer(certPath, keyPath, registrationManager, recordManager, logger)
-	if err != nil {
-		return err
-	}
+		srv.RegisterService(clService)
+	},
+}
 
-	srv.EnableTracing()
-	return srv.Start(port)
+var serverPsysCmd = &cobra.Command{
+	Use: "psys",
+	Short: "Configures the server to run pseudonym system scheme for" +
+		" anonymous authentication. Uses modular arithmetic.",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("running psys server")
+	},
+}
+
+var serverECPsysCmd = &cobra.Command{
+	Use: "ecpsys",
+	Short: "Configures the server to run pseudonym system scheme for" +
+		" anonymous authentication. Uses EC arithmetic.",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("running ecpsys server")
+	},
 }
