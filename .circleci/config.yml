@@ -40,8 +40,13 @@ jobs:
       - checkout
 
       - run:
+          name: Install gomobile tool
+          command: go get golang.org/x/mobile/cmd/gomobile
+
+      - run:
           name: Create emmy android archive
           command: |
+           gomobile init
            GO111MODULE=on go install -i
            make android
 
