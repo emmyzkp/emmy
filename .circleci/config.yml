@@ -60,7 +60,7 @@ jobs:
           command: |
            gomobile init
            GO111MODULE=on go install -i ./...
-           ANDROID_HOME=android-sdk make android
+           GO111MODULE=off ANDROID_HOME=android-sdk make android
 
       - store_artifacts:
           path: emmy.aar
