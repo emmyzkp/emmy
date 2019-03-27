@@ -59,6 +59,7 @@ jobs:
           name: Create emmy android archive
           command: |
            gomobile init
+           echo $PWD
            ANDROID_HOME=android-sdk make android
 
       - store_artifacts:
