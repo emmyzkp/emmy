@@ -59,8 +59,7 @@ jobs:
           name: Create emmy android archive
           command: |
            gomobile init
-           echo $PWD
-           go get github.com/emmyzkp/crypto
+           go install -i ./...
            ANDROID_HOME=android-sdk make android
 
       - store_artifacts:
