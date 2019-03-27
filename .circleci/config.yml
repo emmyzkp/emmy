@@ -44,6 +44,8 @@ jobs:
           command: |
            go install -i
            make android
+          environment:
+            GO111MODULE: off
 
       - store_artifacts:
           path: emmy.aar
