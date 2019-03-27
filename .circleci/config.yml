@@ -40,11 +40,12 @@ jobs:
       - checkout
 
       - run:
-          name: Install Android SDK
+          name: Install Android SDK & NDK
           command: |
            sudo apt-get install libc6-dev-i386 lib32z1 default-jdk
            wget https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
            unzip sdk-tools-linux-4333796.zip -d android-sdk
+           android-sdk/tools/bin/sdkmanager ndk-bundle
 
       - run:
           name: Install gomobile tool
