@@ -42,9 +42,9 @@ jobs:
       - run:
           name: Install Android SDK
           command: |
-          sudo apt-get install libc6-dev-i386 lib32z1 default-jdk
-          wget https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
-          unzip sdk-tools-linux-4333796.zip -d android-sdk
+           sudo apt-get install libc6-dev-i386 lib32z1 default-jdk
+           wget https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
+           unzip sdk-tools-linux-4333796.zip -d android-sdk
 
       - run:
           name: Install gomobile tool
