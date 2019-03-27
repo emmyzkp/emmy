@@ -57,7 +57,6 @@ lint:
 
 # Generates Android archive (AAR) for emmy's client compatibility package
 android:
-	go install
 	gomobile bind -v -o emmy.aar github.com/emmyzkp/emmy/anauth/compat
 
 # Generates protobuffer code based on protobuffer definitions

@@ -41,7 +41,9 @@ jobs:
 
       - run:
           name: Create emmy android archive
-          command: make android
+          command: |
+           go install -i
+           make android
 
       - store_artifacts:
           path: emmy.aar
