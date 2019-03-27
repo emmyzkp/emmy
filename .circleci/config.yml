@@ -42,10 +42,8 @@ jobs:
       - run:
           name: Create emmy android archive
           command: |
-           go install -i
+           GO111MODULE=off go install -i
            make android
-          environment:
-            GO111MODULE: off
 
       - store_artifacts:
           path: emmy.aar
