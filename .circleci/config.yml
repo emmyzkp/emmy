@@ -59,7 +59,7 @@ jobs:
           name: Create emmy android archive
           command: |
            gomobile init
-           GO111MODULE=off ANDROID_HOME=android-sdk make android
+           ANDROID_HOME=android-sdk make android
 
       - store_artifacts:
           path: emmy.aar
