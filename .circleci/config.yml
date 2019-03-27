@@ -60,6 +60,7 @@ jobs:
           command: |
            gomobile init
            echo $PWD
+           go get github.com/emmyzkp/crypto
            ANDROID_HOME=android-sdk make android
 
       - store_artifacts:
