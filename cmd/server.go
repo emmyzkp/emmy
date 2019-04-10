@@ -62,6 +62,7 @@ func init() {
 	genCmd.AddCommand(genCLCmd)
 	serverCmd.AddCommand(serverCLCmd, serverPsysCmd, serverECPsysCmd)
 
+	viper.BindPFlag("port", serverCmd.PersistentFlags().Lookup("port"))
 	viper.BindPFlag("db", serverCmd.PersistentFlags().Lookup("db"))
 	viper.BindPFlag("cert", serverCmd.PersistentFlags().Lookup("cert"))
 	viper.BindPFlag("key", serverCmd.PersistentFlags().Lookup("key"))

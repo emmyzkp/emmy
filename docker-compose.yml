@@ -22,7 +22,7 @@ services:
     build:
       context: .
     environment:
-      - EMMY_REDIS_ADDR=dockercomposeredis:6379
+      - EMMY_REDIS_ADDR=redis:6379
     ports:
     - "7007:7007"
     depends_on:
