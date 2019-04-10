@@ -1,0 +1,10 @@
+# Sample attribute specification for the CL scheme
+attributes:
+  name:
+    index: 0
+    type: string
+    cond: equal
+  age:
+    index: 1
+    type: int64
+    cond: gte

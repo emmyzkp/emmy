@@ -33,30 +33,20 @@ import (
 )
 
 var srv *anauth.GrpcServer
-var port int
-var keyPath string
-var certPath string
-var redisAddr string
-
-var (
-	clNKnownAttrs     int
-	clNCommittedAttrs int
-	clNHiddenAttrs    int
-)
 
 func init() {
 	rootCmd.AddCommand(serverCmd, genCmd)
 
-	serverCmd.PersistentFlags().IntVarP(&port, "port", "p",
+	serverCmd.PersistentFlags().IntP("port", "p",
 		7007,
 		"Port where emmy server will listen for client connections")
-	serverCmd.PersistentFlags().StringVarP(&certPath, "cert", "c",
+	serverCmd.PersistentFlags().StringP("cert", "c",
 		"./anauth/test/testdata/server.pem",
 		"Path to server's certificate file")
-	serverCmd.PersistentFlags().StringVarP(&keyPath, "key", "k",
+	serverCmd.PersistentFlags().StringP("key", "k",
 		"./anauth/test/testdata/server.key",
 		"Path to server's key file")
-	serverCmd.PersistentFlags().StringVarP(&redisAddr, "db", "",
+	serverCmd.PersistentFlags().StringP("db", "",
 		"localhost:6379",
 		"URI of redis database to hold registration keys, in the form redisHost:redisPort")
 	serverCmd.PersistentFlags().StringP("logfile", "",
@@ -64,23 +54,29 @@ func init() {
 		"Path to the file where server logs will be written ("+
 			"created if it doesn't exist)")
 
-	viper.BindPFlag("REDIS_ADDR", serverCmd.Flags().Lookup("db"))
-
-	genCLCmd.Flags().IntVar(&clNKnownAttrs, "known", 0,
-		"Number of known attributes")
-	genCLCmd.Flags().IntVar(&clNCommittedAttrs, "committed", 0,
-		"Number of known attributes")
-	genCLCmd.Flags().IntVar(&clNHiddenAttrs, "hidden", 0,
-		"Number of known attributes")
-	_ = genCLCmd.MarkFlagRequired("known")
-
-	viper.BindPFlag("CL_ATTRS_KNOWN", genCLCmd.Flags().Lookup("known"))
-	viper.BindPFlag("CL_ATTRS_COMMITTED", genCLCmd.Flags().Lookup("committed"))
-	viper.BindPFlag("CL_ATTRS_HIDDEN", genCLCmd.Flags().Lookup("hidden"))
+	genCLCmd.Flags().Int("known", 0, "Number of known attributes")
+	genCLCmd.Flags().Int("committed", 0, "Number of committed attributes")
+	genCLCmd.Flags().Int("hidden", 0, "Number of hidden attributes")
 
 	// add subcommands tied to various anonymous authentication schemes
 	genCmd.AddCommand(genCLCmd)
 	serverCmd.AddCommand(serverCLCmd, serverPsysCmd, serverECPsysCmd)
+
+	viper.BindPFlag("db", serverCmd.PersistentFlags().Lookup("db"))
+	viper.BindPFlag("cert", serverCmd.PersistentFlags().Lookup("cert"))
+	viper.BindPFlag("key", serverCmd.PersistentFlags().Lookup("key"))
+
+	viper.BindPFlag("cl_n_known", genCLCmd.Flags().Lookup("known"))
+	viper.BindPFlag("cl_n_committed", genCLCmd.Flags().Lookup("committed"))
+	viper.BindPFlag("cl_n_hidden", genCLCmd.Flags().Lookup("hidden"))
+
+	viper.SetEnvPrefix("EMMY")
+	viper.BindEnv("db", "EMMY_REDIS_ADDR")
+	viper.BindEnv("cert", "EMMY_TLS_CERT")
+	viper.BindEnv("key", "EMMY_TLS_KEY")
+	viper.BindEnv("cl_n_known", "EMMY_CL_N_KNOWN")
+	viper.BindEnv("cl_n_committed", "EMMY_CL_N_COMMITTED")
+	viper.BindEnv("cl_n_hidden", "EMMY_CL_N_HIDDEN")
 }
 
 var genCmd = &cobra.Command{
@@ -95,7 +91,12 @@ var genCLCmd = &cobra.Command{
 	SuggestFor: []string{"cl"},
 	Run: func(cmd *cobra.Command, args []string) {
 		keys, err := cl.GenerateKeyPair(cl.GetDefaultParamSizes(),
-			cl.NewAttrCount(clNKnownAttrs, clNCommittedAttrs, clNHiddenAttrs))
+			cl.NewAttrCount(
+				viper.GetInt("cl_n_known"),
+				viper.GetInt("cl_n_committed"),
+				viper.GetInt("cl_n_hidden"),
+			),
+		)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -131,14 +132,17 @@ clients (provers).`,
 			os.Exit(1)
 		}
 
-		srv, err = anauth.NewGrpcServer(certPath, keyPath, lgr)
+		srv, err = anauth.NewGrpcServer(
+			viper.GetString("cert"),
+			viper.GetString("key"),
+			lgr)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		if err := srv.Start(port); err != nil {
+		if err := srv.Start(viper.GetInt("port")); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -165,7 +169,7 @@ var serverCLCmd = &cobra.Command{
 		}
 
 		redis := anauth.NewRedisClient(redis.NewClient(&redis.Options{
-			Addr: redisAddr,
+			Addr: viper.GetString("db"),
 		}))
 		if err := redis.Ping().Err(); err != nil {
 			fmt.Println("cannot connect to redis:", err)

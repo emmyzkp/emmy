@@ -36,21 +36,14 @@ COPY ./ ./
 RUN go install
 
 # Number of parameters for the CL scheme
-ENV CL_ATTRS_KNOWN=0 \
-    CL_ATTRS_COMMITTED=0 \
-    CL_ATTRS_HIDDEN=0
-
-RUN ls /root/.emmy
+ENV EMMY_CL_N_KNOWN=2 \
+    EMMY_CL_N_COMMITTED=0 \
+    EMMY_CL_N_HIDDEN=0
 
 # Creates keys for the organization
-RUN emmy generate cl \
-    --known $CL_ATTRS_KNOWN \
-    --committed $CL_ATTRS_COMMITTED \
-    --hidden $CL_ATTRS_HIDDEN
-
-ENV REDIS_ADDR="redis:6379"
+RUN emmy generate cl
 
 # Start emmy server
-CMD emmy server cl --db $REDIS_ADDR
+CMD emmy server cl
 
 EXPOSE 7007
