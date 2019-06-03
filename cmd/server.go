@@ -72,9 +72,11 @@ func init() {
 	viper.BindPFlag("cl_n_hidden", genCLCmd.Flags().Lookup("hidden"))
 
 	viper.SetEnvPrefix("EMMY")
+	viper.BindEnv("port", "EMMY_SERVER_PORT")
 	viper.BindEnv("db", "EMMY_REDIS_ADDR")
 	viper.BindEnv("cert", "EMMY_TLS_CERT")
 	viper.BindEnv("key", "EMMY_TLS_KEY")
+	viper.BindEnv("cl_attrs_bitlen", "EMMY_CL_ATTRS_BITLEN")
 	viper.BindEnv("cl_n_known", "EMMY_CL_N_KNOWN")
 	viper.BindEnv("cl_n_committed", "EMMY_CL_N_COMMITTED")
 	viper.BindEnv("cl_n_hidden", "EMMY_CL_N_HIDDEN")

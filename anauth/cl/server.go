@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+
 	"github.com/go-redis/redis"
 
 	"github.com/spf13/viper"
@@ -50,14 +51,14 @@ type Server struct {
 
 	config *viper.Viper
 
-	SessMgr anauth.SessManager
-	SessStorer anauth.SessStorer
-	RegMgr  anauth.RegManager
+	SessMgr     anauth.SessManager
+	SessStorer  anauth.SessStorer
+	RegMgr      anauth.RegManager
 	DataFetcher AttrDataFetcher
 }
 
-type AttrDataFetcher interface{
-	FetchAttrData()(map[string]interface{}, error)
+type AttrDataFetcher interface {
+	FetchAttrData() (map[string]interface{}, error)
 }
 
 type RedisDataFetcher struct {
@@ -102,6 +103,12 @@ func (f *RedisDataFetcher) FetchAttrData() (map[string]interface{}, error) {
 func NewServer(recMgr ReceiverRecordManager, keys *KeyPair,
 	v *viper.Viper) (*Server, error) {
 	params := GetDefaultParamSizes()
+	if v.IsSet("cl_attrs_bitlen") {
+		if customAttrBitLen := v.GetInt32("cl_attrs_bitlen"); customAttrBitLen != 0 {
+			params.AttrBitLen = customAttrBitLen
+			fmt.Println("Using custom attributes bit length:", customAttrBitLen)
+		}
+	}
 
 	org, err := NewOrgFromParams(params, keys)
 	if err != nil {
@@ -127,10 +134,10 @@ func NewServer(recMgr ReceiverRecordManager, keys *KeyPair,
 
 	return &Server{
 		ReceiverRecordManager: recMgr,
-		Org:       org,
-		config:    v,
-		attrs:     attrs,
-		attrCount: attrCount,
+		Org:                   org,
+		config:                v,
+		attrs:                 attrs,
+		attrCount:             attrCount,
 	}, nil
 }
 
