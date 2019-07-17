@@ -14,36 +14,44 @@
 # limitations under the License.
 #
 
-FROM golang:1.12
+# First stage
+FROM golang:1.12 as builder
+
+# Run subsequent commands from the project root
+WORKDIR /root/emmy/
+COPY ./ ./
+
+# Install dependencies and compile the project
+# Disable dynamic linking to remove the dynamic libc dependency
+RUN CGO_ENABLED=0 go install
+
+# Second stage
+FROM scratch
 
 LABEL maintainer="XLAB d.o.o" \
       description="This image starts the core Emmy server\
        in CL mode (Camenisch-Lysyanskaya anonymous authentication scheme)"
 
-WORKDIR /root
-
-# Create appropriate directory structure
-RUN mkdir -p emmy .emmy
-
-# Copy config file
-COPY config.yml .emmy/
-
-# Run subsequent commands from the project root
-WORKDIR /root/emmy
-COPY ./ ./
-
-# Install dependencies and compile the project
-RUN go install
+EXPOSE 7007
 
 # Number of parameters for the CL scheme
 ENV EMMY_CL_N_KNOWN=2 \
     EMMY_CL_N_COMMITTED=0 \
     EMMY_CL_N_HIDDEN=0
 
+# Copy config file
+COPY config.yml /.emmy/config.yml
+
+# Copy test dependencies
+COPY ./anauth/test/testdata/ /anauth/test/testdata/
+
+# Add the executable from the previous stage
+COPY --from=builder /go/bin/emmy /emmy
+
+
 # Creates keys for the organization
-RUN emmy generate cl
+RUN ["/emmy", "generate", "cl"]
 
 # Start emmy server
-CMD emmy server cl
+ENTRYPOINT ["/emmy", "server", "cl"]
 
-EXPOSE 7007
